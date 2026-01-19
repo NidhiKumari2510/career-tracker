@@ -1,7 +1,10 @@
 import { useState, FormEvent } from 'react';
-import { supabase } from '../lib/supabase';
 import { useNavigation } from '../contexts/NavigationContext';
 import { CheckCircle } from 'lucide-react';
+import { getFromStorage } from '../lib/storage';
+
+const JOBS_STORAGE_KEY = 'jobs';
+
 
 export default function AddJob() {
   const { navigateTo } = useNavigation();
@@ -17,35 +20,40 @@ export default function AddJob() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const handleSubmit = (e: FormEvent) => {
+  e.preventDefault();
+  setLoading(true);
 
-    const { error } = await supabase.from('jobs').insert([
-      {
-        job_title: formData.jobTitle,
-        company_name: formData.companyName,
-        location: formData.location,
-        job_type: formData.jobType,
-        status: formData.status,
-        date_applied: formData.dateApplied,
-        notes: formData.notes,
-      },
-    ]);
+  try {
+    const existingJobs = getFromStorage(JOBS_STORAGE_KEY, []);
 
-    setLoading(false);
+    const newJob = {
+      id: crypto.randomUUID(),
+      jobTitle: formData.jobTitle,
+      companyName: formData.companyName,
+      location: formData.location,
+      jobType: formData.jobType,
+      status: formData.status,
+      dateApplied: formData.dateApplied,
+      notes: formData.notes,
+      createdAt: new Date().toISOString(),
+    };
 
-    if (error) {
-      console.error('Error adding job:', error);
-      alert('Error adding job. Please try again.');
-      return;
-    }
+    const updatedJobs = [...existingJobs, newJob];
+    localStorage.setItem(JOBS_STORAGE_KEY, JSON.stringify(updatedJobs));
 
     setSuccess(true);
     setTimeout(() => {
       navigateTo('dashboard');
     }, 1500);
-  };
+  } catch (err) {
+    console.error('Error adding job:', err);
+    alert('Error adding job. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   if (success) {
     return (

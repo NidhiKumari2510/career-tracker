@@ -1,16 +1,27 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
-import { Search, Filter } from 'lucide-react';
-import type { Database } from '../lib/database.types';
+import { useEffect, useState } from "react";
+import { Search, Filter } from "lucide-react";
+import { getFromStorage } from "../lib/storage";
 
-type Job = Database['public']['Tables']['jobs']['Row'];
-type StatusFilter = 'All' | 'Applied' | 'Interviewing' | 'Offer' | 'Rejected';
+type Job = {
+  id: string;
+  jobTitle: string;
+  companyName: string;
+  location: string;
+  jobType: "Internship" | "Full-time";
+  status: "Applied" | "Interviewing" | "Offer" | "Rejected";
+  dateApplied: string;
+  notes?: string;
+  createdAt: string;
+};
+
+type StatusFilter = "All" | "Applied" | "Interviewing" | "Offer" | "Rejected";
+const JOBS_STORAGE_KEY = "jobs";
 
 export default function AllJobs() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filteredJobs, setFilteredJobs] = useState<Job[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,39 +32,40 @@ export default function AllJobs() {
     applyFilters();
   }, [searchQuery, statusFilter, jobs]);
 
-  async function loadJobs() {
+  function loadJobs() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('jobs')
-      .select('*')
-      .order('date_applied', { ascending: false });
 
-    if (error) {
-      console.error('Error loading jobs:', error);
+    try {
+      const storedJobs = getFromStorage<Job[]>(JOBS_STORAGE_KEY, []);
+
+      // Sort by applied date (latest first)
+      const sortedJobs = [...storedJobs].sort(
+        (a, b) =>
+          new Date(b.dateApplied).getTime() - new Date(a.dateApplied).getTime(),
+      );
+
+      setJobs(sortedJobs);
+    } catch (err) {
+      console.error("Error loading jobs from localStorage:", err);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    if (data) {
-      setJobs(data);
-    }
-    setLoading(false);
   }
 
   function applyFilters() {
     let filtered = [...jobs];
 
-    if (statusFilter !== 'All') {
+    if (statusFilter !== "All") {
       filtered = filtered.filter((job) => job.status === statusFilter);
     }
 
-    if (searchQuery.trim() !== '') {
+    if (searchQuery.trim() !== "") {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (job) =>
-          job.company_name.toLowerCase().includes(query) ||
-          job.job_title.toLowerCase().includes(query) ||
-          job.location.toLowerCase().includes(query)
+          job.companyName.toLowerCase().includes(query) ||
+          job.jobTitle.toLowerCase().includes(query) ||
+          job.location.toLowerCase().includes(query),
       );
     }
 
@@ -62,16 +74,16 @@ export default function AllJobs() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Applied':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'Interviewing':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Offer':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'Rejected':
-        return 'bg-red-100 text-red-800 border-red-200';
+      case "Applied":
+        return "bg-blue-100 text-blue-800 border-blue-200";
+      case "Interviewing":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "Offer":
+        return "bg-green-100 text-green-800 border-green-200";
+      case "Rejected":
+        return "bg-red-100 text-red-800 border-red-200";
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return "bg-gray-100 text-gray-800 border-gray-200";
     }
   };
 
@@ -86,8 +98,12 @@ export default function AllJobs() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold text-gray-900">All Job Applications</h2>
-        <p className="text-gray-600 mt-1">View and manage all your job applications</p>
+        <h2 className="text-2xl font-semibold text-gray-900">
+          All Job Applications
+        </h2>
+        <p className="text-gray-600 mt-1">
+          View and manage all your job applications
+        </p>
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
@@ -123,8 +139,8 @@ export default function AllJobs() {
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-12 text-center">
           <div className="text-gray-500">
             {jobs.length === 0
-              ? 'No job applications yet. Start by adding your first application!'
-              : 'No applications match your filters.'}
+              ? "No job applications yet. Start by adding your first application!"
+              : "No applications match your filters."}
           </div>
         </div>
       ) : (
@@ -136,12 +152,14 @@ export default function AllJobs() {
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900 text-lg mb-1">{job.job_title}</h3>
-                  <p className="text-gray-600 text-sm">{job.company_name}</p>
+                  <h3 className="font-semibold text-gray-900 text-lg mb-1">
+                    {job.jobTitle}
+                  </h3>
+                  <p className="text-gray-600 text-sm">{job.companyName}</p>
                 </div>
                 <span
                   className={`px-3 py-1 text-xs font-semibold rounded-full border ${getStatusColor(
-                    job.status
+                    job.status,
                   )}`}
                 >
                   {job.status}
@@ -157,21 +175,23 @@ export default function AllJobs() {
                 )}
                 <div className="flex items-center text-gray-600">
                   <span className="font-medium mr-2">Type:</span>
-                  {job.job_type}
+                  {job.jobType}
                 </div>
                 <div className="flex items-center text-gray-600">
                   <span className="font-medium mr-2">Applied:</span>
-                  {new Date(job.date_applied).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
+                  {new Date(job.dateApplied).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
                   })}
                 </div>
               </div>
 
               {job.notes && (
                 <div className="mt-4 pt-4 border-t border-gray-200">
-                  <p className="text-sm text-gray-600 line-clamp-2">{job.notes}</p>
+                  <p className="text-sm text-gray-600 line-clamp-2">
+                    {job.notes}
+                  </p>
                 </div>
               )}
             </div>
@@ -181,8 +201,12 @@ export default function AllJobs() {
 
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
         <div className="text-sm text-gray-600">
-          Showing <span className="font-semibold text-gray-900">{filteredJobs.length}</span> of{' '}
-          <span className="font-semibold text-gray-900">{jobs.length}</span> applications
+          Showing{" "}
+          <span className="font-semibold text-gray-900">
+            {filteredJobs.length}
+          </span>{" "}
+          of <span className="font-semibold text-gray-900">{jobs.length}</span>{" "}
+          applications
         </div>
       </div>
     </div>
